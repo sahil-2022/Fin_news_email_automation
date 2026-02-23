@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FINews — Daily Market Intelligence</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <div class="bg-particles" id="particles"></div>
+
+  <!-- Loading Overlay -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loader">
+      <div class="loader-ring"></div>
+      <div class="loader-ring"></div>
+      <div class="loader-ring"></div>
+      <p class="loader-text">Fetching Live Market Data...</p>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="container">
+      <div class="header-content">
+        <div class="logo-section">
+          <div class="logo-icon">📈</div>
+          <div>
+            <h1 class="logo-text">FINews</h1>
+            <p class="logo-subtitle">Daily Market Intelligence</p>
+          </div>
+        </div>
+        <div class="header-right">
+          <div class="live-badge"><span class="live-dot"></span><span>LIVE</span></div>
+          <div class="timestamp" id="timestamp"></div>
+          <button class="refresh-btn" id="refreshBtn" title="Refresh Data">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 4v6h-6" />
+              <path d="M1 20v-6h6" />
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="main container">
+
+    <!-- AI Summary -->
+    <section class="section fade-in" style="--delay: 0.05s">
+      <div class="ai-summary-card glass-card" id="aiSummaryCard" style="display:none;">
+        <div class="ai-header">🤖 AI Market Summary</div>
+        <p class="ai-text" id="aiSummaryText"></p>
+        <span class="ai-source" id="aiSummarySource"></span>
+      </div>
+    </section>
+
+    <!-- Sentiment + VIX -->
+    <section class="section fade-in" style="--delay: 0.1s">
+      <div class="sentiment-vix-grid">
+        <div class="sentiment-card glass-card" id="sentimentCard">
+          <div class="sentiment-label">MARKET SENTIMENT</div>
+          <div class="sentiment-value" id="sentimentValue">—</div>
+          <div class="sentiment-bar-wrap">
+            <div class="sentiment-labels"><span style="color:#ef4444;">FEAR</span><span
+                style="color:#10b981;">GREED</span></div>
+            <div class="sentiment-bar">
+              <div class="sentiment-dot" id="sentimentDot"></div>
+            </div>
+            <div class="sentiment-score" id="sentimentScore">Score: —</div>
+          </div>
+        </div>
+        <div class="vix-card glass-card" id="vixCard">
+          <div class="vix-label">INDIA VIX (Fear Index)</div>
+          <div class="vix-value" id="vixValue">—</div>
+          <div class="vix-change" id="vixChange"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Index Cards -->
+    <section class="section fade-in" style="--delay: 0.15s">
+      <div class="index-cards-grid">
+        <div class="index-card glass-card" id="nifty50Card">
+          <div class="index-card-header"><span class="index-label">NIFTY 50</span><span
+              class="index-badge nse-badge">NSE</span></div>
+          <div class="index-value" id="nifty50Value">—</div>
+          <div class="index-change" id="nifty50Change"><span class="change-arrow" id="nifty50Arrow"></span><span
+              id="nifty50ChangeVal"></span><span id="nifty50ChangePct"></span></div>
+          <div class="index-bar-wrapper">
+            <div class="index-bar">
+              <div class="index-bar-fill" id="nifty50Bar" style="width:0%"></div>
+            </div>
+            <div class="index-bar-labels"><span id="nifty50Low">L: —</span><span id="nifty50High">H: —</span></div>
+          </div>
+        </div>
+        <div class="index-card glass-card" id="bankNiftyCard">
+          <div class="index-card-header"><span class="index-label">BANK NIFTY</span><span
+              class="index-badge nse-badge">NSE</span></div>
+          <div class="index-value" id="bankNiftyValue">—</div>
+          <div class="index-change" id="bankNiftyChange"><span class="change-arrow" id="bankNiftyArrow"></span><span
+              id="bankNiftyChangeVal"></span><span id="bankNiftyChangePct"></span></div>
+          <div class="index-bar-wrapper">
+            <div class="index-bar">
+              <div class="index-bar-fill" id="bankNiftyBar" style="width:0%"></div>
+            </div>
+            <div class="index-bar-labels"><span id="bankNiftyLow">L: —</span><span id="bankNiftyHigh">H: —</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Nifty 50 Top Movers -->
+    <section class="section fade-in" style="--delay: 0.2s">
+      <h2 class="section-title"><span class="section-icon">📊</span> NIFTY 50 — Top Movers</h2>
+      <div class="movers-grid">
+        <div class="movers-card glass-card gainers-card">
+          <div class="movers-header gainers-header"><span class="movers-icon">🟢</span> Top Gainers</div>
+          <div class="movers-list" id="niftyGainersList"></div>
+        </div>
+        <div class="movers-card glass-card losers-card">
+          <div class="movers-header losers-header"><span class="movers-icon">🔴</span> Top Losers</div>
+          <div class="movers-list" id="niftyLosersList"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Bank Nifty Top Movers -->
+    <section class="section fade-in" style="--delay: 0.25s">
+      <h2 class="section-title"><span class="section-icon">🏦</span> BANK NIFTY — Top Movers</h2>
+      <div class="movers-grid">
+        <div class="movers-card glass-card gainers-card">
+          <div class="movers-header gainers-header"><span class="movers-icon">🟢</span> Top Gainers</div>
+          <div class="movers-list" id="bankGainersList"></div>
+        </div>
+        <div class="movers-card glass-card losers-card">
+          <div class="movers-header losers-header"><span class="movers-icon">🔴</span> Top Losers</div>
+          <div class="movers-list" id="bankLosersList"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Sector Heatmap -->
+    <section class="section fade-in" style="--delay: 0.3s">
+      <h2 class="section-title"><span class="section-icon">📊</span> Sector Performance</h2>
+      <div class="sector-grid" id="sectorGrid"></div>
+    </section>
+
+    <!-- FII/DII -->
+    <section class="section fade-in" style="--delay: 0.35s">
+      <h2 class="section-title"><span class="section-icon">💹</span> FII / DII Activity</h2>
+      <div class="fii-dii-grid">
+        <div class="fii-card glass-card">
+          <div class="fii-header"><span class="fii-label">FII / FPI</span><span class="fii-net" id="fiiNet">—</span>
+          </div>
+          <div class="fii-bars">
+            <div class="fii-bar-group"><span class="fii-bar-label">Buy</span>
+              <div class="fii-bar">
+                <div class="fii-bar-fill buy-bar" id="fiiBuyBar" style="width:0%"></div>
+              </div><span class="fii-bar-value" id="fiiBuyVal">—</span>
+            </div>
+            <div class="fii-bar-group"><span class="fii-bar-label">Sell</span>
+              <div class="fii-bar">
+                <div class="fii-bar-fill sell-bar" id="fiiSellBar" style="width:0%"></div>
+              </div><span class="fii-bar-value" id="fiiSellVal">—</span>
+            </div>
+          </div>
+        </div>
+        <div class="fii-card glass-card">
+          <div class="fii-header"><span class="fii-label">DII</span><span class="fii-net" id="diiNet">—</span></div>
+          <div class="fii-bars">
+            <div class="fii-bar-group"><span class="fii-bar-label">Buy</span>
+              <div class="fii-bar">
+                <div class="fii-bar-fill buy-bar" id="diiBuyBar" style="width:0%"></div>
+              </div><span class="fii-bar-value" id="diiBuyVal">—</span>
+            </div>
+            <div class="fii-bar-group"><span class="fii-bar-label">Sell</span>
+              <div class="fii-bar">
+                <div class="fii-bar-fill sell-bar" id="diiSellBar" style="width:0%"></div>
+              </div><span class="fii-bar-value" id="diiSellVal">—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Support & Resistance -->
+    <section class="section fade-in" style="--delay: 0.4s">
+      <h2 class="section-title"><span class="section-icon">📐</span> Support & Resistance</h2>
+      <div id="srContainer"></div>
+    </section>
+
+    <!-- 52-Week + Most Active + Trending -->
+    <section class="section fade-in" style="--delay: 0.45s">
+      <div class="triple-grid">
+        <div class="glass-card compact-card">
+          <div class="compact-header" style="color:#10b981;">🔝 52-Week Highs</div>
+          <div id="weekHighsList" class="compact-list"></div>
+        </div>
+        <div class="glass-card compact-card">
+          <div class="compact-header" style="color:#ef4444;">🔻 52-Week Lows</div>
+          <div id="weekLowsList" class="compact-list"></div>
+        </div>
+        <div class="glass-card compact-card">
+          <div class="compact-header" style="color:#f59e0b;">🔥 Most Active</div>
+          <div id="mostActiveList" class="compact-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Global Markets -->
+    <section class="section fade-in" style="--delay: 0.5s">
+      <h2 class="section-title"><span class="section-icon">🌍</span> Global Markets</h2>
+      <div class="global-grid" id="globalGrid"></div>
+    </section>
+
+    <!-- Forex & Commodities -->
+    <section class="section fade-in" style="--delay: 0.55s">
+      <h2 class="section-title"><span class="section-icon">💱</span> Forex & Commodities</h2>
+      <div class="forex-commodity-grid" id="forexCommodityGrid"></div>
+    </section>
+
+    <!-- IPO + Earnings + MF -->
+    <section class="section fade-in" style="--delay: 0.6s">
+      <div class="triple-grid">
+        <div class="glass-card compact-card">
+          <div class="compact-header" style="color:#8b5cf6;">📅 IPO Calendar</div>
+          <div id="ipoList" class="compact-list"></div>
+        </div>
+        <div class="glass-card compact-card">
+          <div class="compact-header" style="color:#f59e0b;">📆 Earnings This Week</div>
+          <div id="earningsList" class="compact-list"></div>
+        </div>
+        <div class="glass-card compact-card">
+          <div class="compact-header" style="color:#06b6d4;">📈 Mutual Fund NAVs</div>
+          <div id="mfList" class="compact-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- News -->
+    <section class="section fade-in" style="--delay: 0.65s">
+      <h2 class="section-title"><span class="section-icon">📰</span> Market News</h2>
+      <div class="news-list glass-card" id="newsList"></div>
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p>📈 FINews — Market Intelligence</p>
+      <p class="disclaimer">Disclaimer: For informational purposes only. Not financial advice.</p>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+
+</html>
