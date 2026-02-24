@@ -1,4 +1,5 @@
 const axios = require('axios');
+const cheerio = require('cheerio');
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -6,19 +7,21 @@ async function getFIIDIIData() {
     console.log('📊 Fetching FII/DII data...');
 
     const strategies = [
-        fetchFromStockEdge,
-        fetchFromNSE,
+        { name: 'StockEdge', fn: fetchFromStockEdge },
+        { name: 'MoneyControl', fn: fetchFromMoneyControl },
+        { name: 'NSE', fn: fetchFromNSE },
     ];
 
     for (const strategy of strategies) {
         try {
-            const result = await strategy();
+            const result = await strategy.fn();
             if (result && (Math.abs(result.fii.netValue) > 0 || Math.abs(result.dii.netValue) > 0)) {
                 console.log(`✅ FII/DII data fetched (source: ${result.source})`);
                 return result;
             }
+            console.warn(`⚠️ ${strategy.name}: returned zero values, trying next...`);
         } catch (error) {
-            console.warn(`⚠️ FII/DII strategy failed: ${error.message}`);
+            console.warn(`⚠️ ${strategy.name} failed: ${error.message}`);
         }
     }
 
@@ -31,66 +34,140 @@ async function getFIIDIIData() {
     };
 }
 
-// Strategy 1: StockEdge API — returns net values for FII/DII cash market
+// Strategy 1: StockEdge API — with retry logic
 async function fetchFromStockEdge() {
     console.log('  🔄 Trying StockEdge API...');
 
+    const MAX_RETRIES = 3;
+    let lastError;
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+            if (attempt > 1) {
+                console.log(`  🔄 StockEdge retry ${attempt}/${MAX_RETRIES}...`);
+                await sleep(2000 * attempt); // increasing delay
+            }
+
+            const response = await axios.get(
+                'https://api.stockedge.com/Api/FIIDashboardApi/GetLatestFIIActivities?lang=en',
+                {
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+                        'Accept': 'application/json, text/plain, */*',
+                        'Accept-Language': 'en-US,en;q=0.9',
+                        'Accept-Encoding': 'gzip, deflate, br',
+                        'Referer': 'https://web.stockedge.com/',
+                        'Origin': 'https://web.stockedge.com',
+                    },
+                    timeout: 20000,
+                }
+            );
+
+            const data = response.data;
+            if (!Array.isArray(data) || data.length === 0) throw new Error('StockEdge: empty response');
+
+            const latest = data[0];
+            const dateRaw = latest.Date;
+            const dateObj = new Date(dateRaw);
+            const dateStr = dateObj.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+
+            const result = {
+                date: dateStr,
+                fii: { buyValue: 0, sellValue: 0, netValue: 0 },
+                dii: { buyValue: 0, sellValue: 0, netValue: 0 },
+                source: 'StockEdge',
+            };
+
+            for (const item of (latest.FIIDIIData || [])) {
+                const name = (item.Name || item.ShortName || '').toUpperCase();
+                const value = parseFloat(item.Value) || 0;
+
+                if (name.includes('FII CASH') || name.includes('FII CM')) {
+                    result.fii.netValue = value;
+                } else if (name.includes('DII CASH') || name.includes('DII CM')) {
+                    result.dii.netValue = value;
+                }
+            }
+
+            return result;
+        } catch (error) {
+            lastError = error;
+        }
+    }
+
+    throw lastError;
+}
+
+// Strategy 2: MoneyControl — scrape FII/DII page
+async function fetchFromMoneyControl() {
+    console.log('  🔄 Trying MoneyControl...');
+
     const response = await axios.get(
-        'https://api.stockedge.com/Api/FIIDashboardApi/GetLatestFIIActivities?lang=en',
+        'https://www.moneycontrol.com/stocks/marketstats/fii_dii_activity/index.php',
         {
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-                'Accept': 'application/json, text/plain, */*',
-                'Referer': 'https://web.stockedge.com/',
-                'Origin': 'https://web.stockedge.com',
+                'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
             },
-            timeout: 15000,
+            timeout: 20000,
         }
     );
 
-    const data = response.data;
-    if (!Array.isArray(data) || data.length === 0) throw new Error('StockEdge: empty response');
-
-    // Get the most recent entry (first in the array)
-    const latest = data[0];
-    const dateRaw = latest.Date; // e.g. "2026-02-23T00:00:00"
-    const dateObj = new Date(dateRaw);
-    const dateStr = dateObj.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    const $ = cheerio.load(response.data);
 
     const result = {
-        date: dateStr,
+        date: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
         fii: { buyValue: 0, sellValue: 0, netValue: 0 },
         dii: { buyValue: 0, sellValue: 0, netValue: 0 },
-        source: 'StockEdge',
+        source: 'MoneyControl',
     };
 
-    // FIIDIIData is an array of { Name, ShortName, Value }
-    // "FII Cash Market*" → FII net
-    // "DII Cash Market*" → DII net
-    // Note: StockEdge only provides net values (not buy/sell breakdown)
-    for (const item of (latest.FIIDIIData || [])) {
-        const name = (item.Name || item.ShortName || '').toUpperCase();
-        const value = parseFloat(item.Value) || 0;
+    // MoneyControl displays FII/DII data in tables
+    // Look for tables with FII and DII data
+    $('table').each((_, table) => {
+        const rows = $(table).find('tr');
+        rows.each((_, row) => {
+            const cells = $(row).find('td');
+            if (cells.length >= 4) {
+                const category = $(cells[0]).text().trim().toUpperCase();
+                const buyVal = parseFloat($(cells[1]).text().replace(/,/g, '')) || 0;
+                const sellVal = parseFloat($(cells[2]).text().replace(/,/g, '')) || 0;
+                const netVal = parseFloat($(cells[3]).text().replace(/,/g, '')) || 0;
 
-        if (name.includes('FII CASH') || name.includes('FII CM')) {
-            result.fii.netValue = value;
-            // Estimate buy/sell: if net positive, bought more than sold
-            // We'll leave buy/sell as 0 since only net is available
-        } else if (name.includes('DII CASH') || name.includes('DII CM')) {
-            result.dii.netValue = value;
-        }
+                if (category.includes('FII') || category.includes('FPI') || category.includes('FOREIGN')) {
+                    result.fii = { buyValue: buyVal, sellValue: sellVal, netValue: netVal };
+                } else if (category.includes('DII') || category.includes('DOMESTIC')) {
+                    result.dii = { buyValue: buyVal, sellValue: sellVal, netValue: netVal };
+                }
+            }
+        });
+    });
+
+    // Also try parsing from specific data patterns MoneyControl uses
+    const pageText = response.data;
+    if (result.fii.netValue === 0 && result.dii.netValue === 0) {
+        // Try parsing from inline data/scripts
+        const fiiMatch = pageText.match(/FII[^}]*?Net[^:]*?[:=]\s*([-\d,.]+)/i);
+        const diiMatch = pageText.match(/DII[^}]*?Net[^:]*?[:=]\s*([-\d,.]+)/i);
+        if (fiiMatch) result.fii.netValue = parseFloat(fiiMatch[1].replace(/,/g, '')) || 0;
+        if (diiMatch) result.dii.netValue = parseFloat(diiMatch[1].replace(/,/g, '')) || 0;
     }
+
+    // Extract date if available
+    const dateMatch = pageText.match(/(\d{1,2}[-\s](Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[-\s]\d{4})/i);
+    if (dateMatch) result.date = dateMatch[1];
 
     return result;
 }
 
-// Strategy 2: NSE India API (works from cloud IPs, may fail on residential IPs)
+// Strategy 3: NSE India API (may fail from cloud IPs)
 async function fetchFromNSE() {
     console.log('  🔄 Trying NSE India...');
 
     const client = axios.create({ timeout: 20000 });
     const headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
         'Accept-Language': 'en-US,en;q=0.9',
         'Connection': 'keep-alive',
     };
@@ -104,7 +181,7 @@ async function fetchFromNSE() {
     if (!rawCookies.length) throw new Error('NSE: no cookies received');
 
     const cookieStr = rawCookies.map(c => c.split(';')[0]).join('; ');
-    await sleep(1500);
+    await sleep(2000);
 
     // Fetch FII/DII data
     const apiResp = await client.get('https://www.nseindia.com/api/fiidiiTradeReact', {
