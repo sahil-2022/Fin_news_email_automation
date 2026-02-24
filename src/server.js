@@ -25,7 +25,7 @@ const {
 } = require('./scrapers/advancedData');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -53,7 +53,7 @@ app.get('/api/market-data', async (req, res) => {
 
         // Phase 3
         const [srResult, trendResult, ipoResult, earningsResult, mfResult] = await Promise.allSettled([
-            getSupportResistance(), getTrendingStocks(), getIPOCalendar(), getEarningsCalendar(), getMutualFundNAV(),
+            getSupportResistance(), getTrendingStocks(marketData?.allStocks), getIPOCalendar(), getEarningsCalendar(), getMutualFundNAV(),
         ]);
         const supportResistance = srResult.status === 'fulfilled' ? srResult.value : [];
         const trendingStocks = trendResult.status === 'fulfilled' ? trendResult.value : [];

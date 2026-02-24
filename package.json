@@ -6,12 +6,8 @@
     "start": "node src/scheduler.js",
     "send-now": "node src/index.js --now",
     "dashboard": "node src/server.js",
-    "railway": "node src/railway-entry.js",
     "scheduler": "node src/scheduler.js",
     "test": "node src/index.js --now"
-  },
-  "engines": {
-    "node": ">=18.0.0"
   },
   "keywords": [
     "stock-market",

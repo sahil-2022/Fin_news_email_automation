@@ -65,7 +65,7 @@ async function runPipeline() {
         console.log('\n--- Phase 3: Advanced Data ---');
         const [srResult, trendResult, ipoResult, earningsResult, mfResult] = await Promise.allSettled([
             getSupportResistance(),
-            getTrendingStocks(),
+            getTrendingStocks(marketData?.allStocks),
             getIPOCalendar(),
             getEarningsCalendar(),
             getMutualFundNAV(),

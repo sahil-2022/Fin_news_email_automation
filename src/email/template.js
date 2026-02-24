@@ -161,13 +161,33 @@ function buildFIIDIISection(data) {
   if (!data) return '';
   const f = data.fii || {}, d = data.dii || {};
   const fc = changeColor(f.netValue), dc = changeColor(d.netValue);
-  const noteRow = data.note ? `<tr><td colspan="4" style="padding:8px 16px;font-family:${FONT};font-size:12px;color:#94a3b8;font-style:italic;">⚠️ ${data.note}</td></tr>` : '';
-  return `<tr><td style="padding:24px 30px 8px 30px;">
-    <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;">
+  const isNetOnly = (!f.buyValue && !f.sellValue && !d.buyValue && !d.sellValue);
+  const noteRow = data.note ? `<tr><td colspan="${isNetOnly ? '2' : '4'}" style="padding:8px 16px;font-family:${FONT};font-size:12px;color:#94a3b8;font-style:italic;">⚠️ ${data.note}</td></tr>` : '';
+  const netOnlyNote = isNetOnly
+    ? `<tr><td colspan="2" style="padding:6px 16px 10px;font-family:${FONT};font-size:11px;color:#94a3b8;font-style:italic;">ℹ️ Buy/Sell breakdown not available from source — showing Net activity only</td></tr>`
+    : '';
+
+  let tableContent;
+  if (isNetOnly) {
+    tableContent = `
+      <tr><td colspan="2" style="${sectionHeaderStyle('#dbeafe', '#1e3a5f')}">🏦 FII / DII Activity ${data.date ? `<span style="font-weight:400;font-size:13px;color:#64748b;">(${data.date})</span>` : ''}</td></tr>
+      <tr style="background:#f1f5f9;"><td style="padding:10px 16px;font-family:${FONT};font-size:12px;font-weight:600;color:#64748b;">Category</td><td style="padding:10px 16px;font-family:${FONT};font-size:12px;font-weight:600;color:#64748b;text-align:right;">Net (₹ Cr)</td></tr>
+      <tr style="background:#fff;"><td style="padding:14px 16px;font-family:${FONT};font-size:14px;color:#1e293b;font-weight:600;border-bottom:1px solid #f1f5f9;">FII / FPI</td><td style="padding:14px 16px;font-family:${FONT};font-size:14px;color:${fc};text-align:right;font-weight:700;border-bottom:1px solid #f1f5f9;">${sign(f.netValue)}${fmt(f.netValue)}</td></tr>
+      <tr style="background:#f8fafc;"><td style="padding:14px 16px;font-family:${FONT};font-size:14px;color:#1e293b;font-weight:600;">DII</td><td style="padding:14px 16px;font-family:${FONT};font-size:14px;color:${dc};text-align:right;font-weight:700;">${sign(d.netValue)}${fmt(d.netValue)}</td></tr>
+    `;
+  } else {
+    tableContent = `
       <tr><td colspan="4" style="${sectionHeaderStyle('#dbeafe', '#1e3a5f')}">🏦 FII / DII Activity ${data.date ? `<span style="font-weight:400;font-size:13px;color:#64748b;">(${data.date})</span>` : ''}</td></tr>
       <tr style="background:#f1f5f9;"><td style="padding:10px 16px;font-family:${FONT};font-size:12px;font-weight:600;color:#64748b;">Category</td><td style="padding:10px 16px;font-family:${FONT};font-size:12px;font-weight:600;color:#64748b;text-align:right;">Buy (₹ Cr)</td><td style="padding:10px 16px;font-family:${FONT};font-size:12px;font-weight:600;color:#64748b;text-align:right;">Sell (₹ Cr)</td><td style="padding:10px 16px;font-family:${FONT};font-size:12px;font-weight:600;color:#64748b;text-align:right;">Net (₹ Cr)</td></tr>
-      <tr style="background:#fff;"><td style="padding:14px 16px;font-family:${FONT};font-size:14px;color:#1e293b;font-weight:600;border-bottom:1px solid #f1f5f9;">FII / FPI</td><td style="padding:14px 16px;font-family:${FONT};font-size:14px;color:#475569;text-align:right;border-bottom:1px solid #f1f5f9;">${fmt(f.buyValue)}</td><td style="padding:14px 16px;font-family:${FONT};font-size:14px;color:#475569;text-align:right;border-bottom:1px solid #f1f5f9;">${fmt(f.sellValue)}</td><td style="padding:14px 16px;font-family:${FONT};font-size:14px;color:${fc};text-align:right;font-weight:700;border-bottom:1px solid #f1f5f9;">${sign(f.netValue)}${fmt(f.netValue)}</td></tr>
-      <tr style="background:#f8fafc;"><td style="padding:14px 16px;font-family:${FONT};font-size:14px;color:#1e293b;font-weight:600;">DII</td><td style="padding:14px 16px;font-family:${FONT};font-size:14px;color:#475569;text-align:right;">${fmt(d.buyValue)}</td><td style="padding:14px 16px;font-family:${FONT};font-size:14px;color:#475569;text-align:right;">${fmt(d.sellValue)}</td><td style="padding:14px 16px;font-family:${FONT};font-size:14px;color:${dc};text-align:right;font-weight:700;">${sign(d.netValue)}${fmt(d.netValue)}</td></tr>
+      <tr style="background:#fff;"><td style="padding:14px 16px;font-family:${FONT};font-size:14px;color:#1e293b;font-weight:600;border-bottom:1px solid #f1f5f9;">FII / FPI</td><td style="padding:14px 16px;font-family:${FONT};font-size:14px;color:#475569;text-align:right;border-bottom:1px solid #f1f5f9;">${f.buyValue ? fmt(f.buyValue) : '—'}</td><td style="padding:14px 16px;font-family:${FONT};font-size:14px;color:#475569;text-align:right;border-bottom:1px solid #f1f5f9;">${f.sellValue ? fmt(f.sellValue) : '—'}</td><td style="padding:14px 16px;font-family:${FONT};font-size:14px;color:${fc};text-align:right;font-weight:700;border-bottom:1px solid #f1f5f9;">${sign(f.netValue)}${fmt(f.netValue)}</td></tr>
+      <tr style="background:#f8fafc;"><td style="padding:14px 16px;font-family:${FONT};font-size:14px;color:#1e293b;font-weight:600;">DII</td><td style="padding:14px 16px;font-family:${FONT};font-size:14px;color:#475569;text-align:right;">${d.buyValue ? fmt(d.buyValue) : '—'}</td><td style="padding:14px 16px;font-family:${FONT};font-size:14px;color:#475569;text-align:right;">${d.sellValue ? fmt(d.sellValue) : '—'}</td><td style="padding:14px 16px;font-family:${FONT};font-size:14px;color:${dc};text-align:right;font-weight:700;">${sign(d.netValue)}${fmt(d.netValue)}</td></tr>
+    `;
+  }
+
+  return `<tr><td style="padding:24px 30px 8px 30px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;">
+      ${tableContent}
+      ${netOnlyNote}
       ${noteRow}
     </table></td></tr>`;
 }
@@ -258,16 +278,70 @@ function buildTrending(data) {
 
 function buildIPOCalendar(data) {
   if (!data || data.length === 0) return '';
-  const rows = data.map((ipo, i) => {
+  const COLS = 8;
+  const colStyle = (align = 'left') => `padding:8px 12px;font-family:${FONT};font-size:11px;font-weight:600;color:#64748b;text-align:${align};`;
+  const cellStyle = (align = 'left', extra = '') => `padding:9px 12px;font-family:${FONT};font-size:12px;color:#475569;text-align:${align};border-bottom:1px solid #f1f5f9;${extra}`;
+
+  const subColor = (val) => {
+    const n = parseFloat(val);
+    if (isNaN(n) || val === '—') return '#94a3b8';
+    return n >= 1 ? '#16a34a' : '#dc2626';
+  };
+
+  const headerRow = `<tr style="background:#f1f5f9;">
+    <td style="${colStyle()}">IPO NAME</td>
+    <td style="${colStyle('center')}">PRICE BAND</td>
+    <td style="${colStyle('center')}">GMP</td>
+    <td style="${colStyle('center')}">DATES</td>
+    <td style="${colStyle('center')}">QIB(x)</td>
+    <td style="${colStyle('center')}">NII(x)</td>
+    <td style="${colStyle('center')}">RETAIL(x)</td>
+    <td style="${colStyle('center')}">TOTAL(x)</td>
+  </tr>`;
+
+  const buildRows = (ipos) => ipos.map((ipo, i) => {
     const bg = i % 2 === 0 ? '#fff' : '#f8fafc';
-    const nameCell = ipo.link ? `<a href="${ipo.link}" target="_blank" style="color:#1e293b;text-decoration:none;font-weight:500;">${ipo.name}</a>` : ipo.name;
-    return `<tr style="background:${bg};"><td style="padding:10px 16px;font-family:${FONT};font-size:13px;border-bottom:1px solid #f1f5f9;">${nameCell}</td><td style="padding:10px 16px;font-family:${FONT};font-size:12px;color:#475569;text-align:center;border-bottom:1px solid #f1f5f9;">${ipo.dates}</td><td style="padding:10px 16px;font-family:${FONT};font-size:12px;color:#475569;text-align:right;border-bottom:1px solid #f1f5f9;">${ipo.priceRange}</td></tr>`;
+    const nameCell = ipo.link
+      ? `<a href="${ipo.link}" target="_blank" style="color:#1e293b;text-decoration:none;font-weight:500;">${ipo.name}</a>`
+      : `<span style="color:#1e293b;font-weight:500;">${ipo.name}</span>`;
+    const statusBadge = ipo.status === 'Open'
+      ? `<span style="background:#dcfce7;color:#16a34a;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;margin-left:6px;">OPEN</span>`
+      : `<span style="background:#e0e7ff;color:#4338ca;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;margin-left:6px;">SOON</span>`;
+
+    return `<tr style="background:${bg};">
+      <td style="${cellStyle()}">${nameCell}${statusBadge}</td>
+      <td style="${cellStyle('center')}">${ipo.priceRange || '—'}</td>
+      <td style="${cellStyle('center')}">${ipo.gmp || '—'}</td>
+      <td style="${cellStyle('center')}">${ipo.dates || '—'}</td>
+      <td style="${cellStyle('center')};color:${subColor(ipo.subQIB)};font-weight:600;">${ipo.subQIB}</td>
+      <td style="${cellStyle('center')};color:${subColor(ipo.subNII)};font-weight:600;">${ipo.subNII}</td>
+      <td style="${cellStyle('center')};color:${subColor(ipo.subRetail)};font-weight:600;">${ipo.subRetail}</td>
+      <td style="${cellStyle('center')};color:${subColor(ipo.subTotal)};font-weight:700;">${ipo.subTotal}</td>
+    </tr>`;
   }).join('');
-  return `<tr><td style="padding:16px 30px 8px 30px;"><table width="100%" cellpadding="0" cellspacing="0" style="border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;">
-    <tr><td colspan="3" style="${sectionHeaderStyle('#ede9fe', '#5b21b6')}">📅 IPO Calendar</td></tr>
-    <tr style="background:#f1f5f9;"><td style="padding:8px 16px;font-family:${FONT};font-size:11px;font-weight:600;color:#64748b;">IPO</td><td style="padding:8px 16px;font-family:${FONT};font-size:11px;font-weight:600;color:#64748b;text-align:center;">DATES</td><td style="padding:8px 16px;font-family:${FONT};font-size:11px;font-weight:600;color:#64748b;text-align:right;">PRICE BAND</td></tr>
-    ${rows}</table></td></tr>`;
+
+  const mainboard = data.filter(i => i.type !== 'SME');
+  const sme = data.filter(i => i.type === 'SME');
+
+  const mainboardSection = mainboard.length > 0 ? `
+    <tr><td colspan="${COLS}" style="padding:10px 16px 4px;font-family:${FONT};font-size:12px;font-weight:700;color:#5b21b6;background:#f5f3ff;border-top:2px solid #ddd6fe;">🏛️ Mainboard IPOs</td></tr>
+    ${headerRow}
+    ${buildRows(mainboard)}` : '';
+
+  const smeSection = sme.length > 0 ? `
+    <tr><td colspan="${COLS}" style="padding:10px 16px 4px;font-family:${FONT};font-size:12px;font-weight:700;color:#0369a1;background:#e0f2fe;border-top:2px solid #bae6fd;">🏢 SME IPOs</td></tr>
+    ${headerRow}
+    ${buildRows(sme)}` : '';
+
+  return `<tr><td style="padding:16px 30px 8px 30px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;">
+      <tr><td colspan="${COLS}" style="${sectionHeaderStyle('#ede9fe', '#5b21b6')}">📅 IPO Calendar <span style="font-weight:400;font-size:12px;color:#8b5cf6;">(Live Subscription Data)</span></td></tr>
+      ${mainboardSection}
+      ${smeSection}
+      <tr><td colspan="${COLS}" style="padding:6px 16px;font-family:${FONT};font-size:11px;color:#94a3b8;font-style:italic;">ℹ️ Subscription data live from BSE & NSE. Green = oversubscribed (≥1x), Red = undersubscribed.</td></tr>
+    </table></td></tr>`;
 }
+
 
 function buildEarningsCalendar(data) {
   if (!data || data.length === 0) return '';

@@ -85,73 +85,50 @@ async function getSupportResistance() {
 // ============================
 // FEATURE 11: Trending Stocks
 // ============================
-async function getTrendingStocks() {
+async function getTrendingStocks(niftyStockQuotes) {
     console.log('🔥 Fetching trending stocks...');
     try {
-        // Use Yahoo Finance trending tickers for India
-        const trending = await yahooFinance.trendingSymbols('IN', { count: 10 });
-        const symbols = (trending.quotes || [])
-            .map(q => q.symbol)
-            .filter(s => s && s.endsWith('.NS'))
-            .slice(0, 8);
+        // Use already-fetched Nifty stock data to find high-move, high-volume stocks
+        // This avoids the broken Yahoo trendingSymbols API
+        if (niftyStockQuotes && niftyStockQuotes.length > 0) {
+            // Score = abs(% change) * log(volume) — finds big movers with high interest
+            const scored = niftyStockQuotes
+                .filter(s => s.price && s.pChange && s.volume)
+                .map(s => ({
+                    ...s,
+                    score: Math.abs(s.pChange) * Math.log10(s.volume + 1),
+                }))
+                .sort((a, b) => b.score - a.score)
+                .slice(0, 8);
 
-        if (symbols.length === 0) {
-            console.log('  ⚠️ No trending IN symbols, trying manual approach');
-            return await getTrendingFromSearch();
+            console.log(`✅ Trending (top movers): ${scored.length} stocks`);
+            return scored;
         }
 
+        // Fallback: fetch a fixed set of key Nifty stocks
+        const symbols = [
+            'RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'INFY.NS', 'ICICIBANK.NS',
+            'SBIN.NS', 'TATAMOTORS.NS', 'ADANIENT.NS', 'BAJFINANCE.NS', 'AXISBANK.NS',
+        ];
         const results = [];
         for (const symbol of symbols) {
             try {
                 const quote = await yahooFinance.quote(symbol);
                 results.push({
-                    symbol: quote.symbol?.replace('.NS', '') || symbol.replace('.NS', ''),
-                    name: quote.shortName || quote.longName || symbol,
+                    symbol: symbol.replace('.NS', ''),
                     price: quote.regularMarketPrice,
                     change: quote.regularMarketChange,
                     pChange: quote.regularMarketChangePercent,
                     volume: quote.regularMarketVolume,
+                    score: Math.abs(quote.regularMarketChangePercent || 0) * Math.log10((quote.regularMarketVolume || 1) + 1),
                 });
-            } catch (err) {
-                // skip
-            }
+            } catch (err) { /* skip */ }
         }
-
-        console.log(`✅ Trending: ${results.length} stocks`);
-        return results;
+        const sorted = results.sort((a, b) => b.score - a.score).slice(0, 8);
+        console.log(`✅ Trending (fallback movers): ${sorted.length} stocks`);
+        return sorted;
     } catch (error) {
-        console.warn('  ⚠️ Trending symbols fallback:', error.message);
-        return await getTrendingFromSearch();
-    }
-}
-
-async function getTrendingFromSearch() {
-    try {
-        const response = await axios.get('https://trendlyne.com/stock-screeners/most-popular-stocks/', {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-                'Accept': 'text/html',
-            },
-            timeout: 10000,
-        });
-
-        const $ = cheerio.load(response.data);
-        const stocks = [];
-
-        $('table tbody tr').slice(0, 8).each((i, row) => {
-            const cells = $(row).find('td');
-            if (cells.length >= 3) {
-                const name = $(cells[0]).text().trim();
-                const price = parseFloat($(cells[1]).text().replace(/,/g, '')) || 0;
-                if (name && price) {
-                    stocks.push({ symbol: name, name, price, pChange: 0, volume: 0 });
-                }
-            }
-        });
-
-        return stocks;
-    } catch (err) {
-        console.warn('  ⚠️ Trendlyne fallback failed:', err.message);
+        console.warn('  ⚠️ Trending error:', error.message);
         return [];
     }
 }
@@ -162,47 +139,91 @@ async function getTrendingFromSearch() {
 async function getIPOCalendar() {
     console.log('📅 Fetching IPO calendar...');
     try {
-        const response = await axios.get('https://www.chittorgarh.com/ipo/ipo-dashboard/', {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-                'Accept': 'text/html',
-            },
-            timeout: 15000,
-        });
+        const HEADERS = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Accept': 'text/html',
+        };
 
-        const $ = cheerio.load(response.data);
+        // Fetch both pages in parallel
+        const [gmpResp, subResp] = await Promise.allSettled([
+            axios.get('https://ipowatch.in/ipo-grey-market-premium-latest-ipo-gmp/', { headers: HEADERS, timeout: 15000 }),
+            axios.get('https://ipowatch.in/ipo-subscription-status-today/', { headers: HEADERS, timeout: 15000 }),
+        ]);
+
+        // --- Parse subscription data into a lookup map ---
+        const subMap = {}; // name -> { type, qib, nii, retail, total }
+        if (subResp.status === 'fulfilled') {
+            const $s = cheerio.load(subResp.value.data);
+            $s('table').first().find('tr').each((i, row) => {
+                if (i === 0) return;
+                const cells = $s(row).find('td');
+                if (cells.length >= 8) {
+                    const name = $s(cells[0]).text().trim();
+                    const type = $s(cells[1]).text().trim(); // SME or Mainboard
+                    const qib = $s(cells[4]).text().trim();
+                    const nii = $s(cells[5]).text().trim();
+                    const retail = $s(cells[6]).text().trim();
+                    const total = $s(cells[7]).text().trim();
+                    if (name) subMap[name.toLowerCase()] = { type, qib, nii, retail, total };
+                }
+            });
+        }
+
+        // --- Helper to look up subscription by fuzzy name match ---
+        const getSub = (name) => {
+            const key = name.toLowerCase();
+            if (subMap[key]) return subMap[key];
+            // partial match
+            for (const k of Object.keys(subMap)) {
+                if (k.includes(key.slice(0, 12)) || key.includes(k.slice(0, 12))) return subMap[k];
+            }
+            return null;
+        };
+
+        // --- Parse GMP/dates page ---
         const ipos = [];
+        const seen = new Set();
 
-        // Look for IPO tables
-        $('table').each((ti, table) => {
-            const headerText = $(table).prev('h2, h3, h4, .heading').text().toLowerCase();
-            const tableText = $(table).text().toLowerCase();
+        if (gmpResp.status === 'fulfilled') {
+            const $ = cheerio.load(gmpResp.value.data);
 
-            if (tableText.includes('open') || tableText.includes('upcoming') || tableText.includes('ipo') || headerText.includes('ipo')) {
-                $(table).find('tbody tr').each((i, row) => {
+            $('table').slice(0, 2).each((ti, table) => {
+                const openStatus = ti === 0 ? 'Open' : 'Upcoming';
+                $(table).find('tr').each((i, row) => {
+                    if (i === 0) return;
                     const cells = $(row).find('td');
-                    if (cells.length >= 3) {
+                    if (cells.length >= 4) {
                         const name = $(cells[0]).text().trim();
-                        const dates = $(cells[1]).text().trim();
+                        const gmp = $(cells[1]).text().trim();
                         const priceRange = $(cells[2]).text().trim();
+                        const dates = cells.length >= 5 ? $(cells[4]).text().trim() : '';
                         const link = $(cells[0]).find('a').attr('href') || '';
 
-                        if (name && !name.includes('No data') && name.length > 2) {
+                        if (name && name.length > 2 && !seen.has(name)) {
+                            seen.add(name);
+                            const sub = getSub(name);
                             ipos.push({
                                 name: name.substring(0, 60),
-                                dates: dates.substring(0, 40),
+                                type: sub?.type || 'Mainboard', // SME or Mainboard
                                 priceRange: priceRange.substring(0, 30),
-                                link: link.startsWith('http') ? link : (link ? `https://www.chittorgarh.com${link}` : ''),
-                                status: tableText.includes('open') ? 'Open' : 'Upcoming',
+                                gmp: gmp.substring(0, 15),
+                                dates: dates.substring(0, 40),
+                                link: link.startsWith('http') ? link : '',
+                                status: openStatus,
+                                // Subscription data (empty string = not yet started)
+                                subQIB: sub?.qib || '—',
+                                subNII: sub?.nii || '—',
+                                subRetail: sub?.retail || '—',
+                                subTotal: sub?.total || '—',
                             });
                         }
                     }
                 });
-            }
-        });
+            });
+        }
 
-        console.log(`✅ IPOs: ${ipos.length} found`);
-        return ipos.slice(0, 8);
+        console.log(`✅ IPOs: ${ipos.length} found (${ipos.filter(i => i.type === 'Mainboard').length} Mainboard, ${ipos.filter(i => i.type === 'SME').length} SME)`);
+        return ipos.slice(0, 12);
     } catch (error) {
         console.error('❌ IPO error:', error.message);
         return [];
@@ -215,84 +236,109 @@ async function getIPOCalendar() {
 async function getEarningsCalendar() {
     console.log('📆 Fetching earnings calendar...');
     try {
-        const response = await axios.get('https://www.moneycontrol.com/markets/earnings/', {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-                'Accept': 'text/html',
-            },
-            timeout: 15000,
-        });
+        // Chittorgarh corporate results — server-rendered with proper date range
+        const today = new Date();
+        const end = new Date();
+        end.setDate(end.getDate() + 7); // next 7 days
+        const fmt = (d) => `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
 
-        const $ = cheerio.load(response.data);
-        const earnings = [];
-
-        $('table').each((ti, table) => {
-            const text = $(table).text().toLowerCase();
-            if (text.includes('company') && (text.includes('result') || text.includes('earning') || text.includes('date'))) {
-                $(table).find('tbody tr').slice(0, 10).each((i, row) => {
-                    const cells = $(row).find('td');
-                    if (cells.length >= 2) {
-                        const company = $(cells[0]).text().trim();
-                        const date = $(cells[1]).text().trim();
-                        const link = $(cells[0]).find('a').attr('href') || '';
-
-                        if (company && company.length > 2) {
-                            earnings.push({
-                                company: company.substring(0, 50),
-                                date: date.substring(0, 30),
-                                link: link.startsWith('http') ? link : (link ? `https://www.moneycontrol.com${link}` : ''),
-                            });
-                        }
-                    }
-                });
+        const response = await axios.get(
+            `https://www.chittorgarh.com/report/board_meeting_agenda_result_dividend_income_tax_india/11/?from_date=${fmt(today)}&to_date=${fmt(end)}&sub_type=all`,
+            {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                    'Accept': 'text/html',
+                },
+                timeout: 15000,
             }
-        });
-
-        // If moneycontrol fails, try Trendlyne
-        if (earnings.length === 0) {
-            return await getEarningsFromTrendlyne();
-        }
-
-        console.log(`✅ Earnings: ${earnings.length} companies`);
-        return earnings.slice(0, 8);
-    } catch (error) {
-        console.warn('⚠️ Earnings error:', error.message);
-        return await getEarningsFromTrendlyne();
-    }
-}
-
-async function getEarningsFromTrendlyne() {
-    try {
-        const response = await axios.get('https://trendlyne.com/equity/results-calendar/', {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-                'Accept': 'text/html',
-            },
-            timeout: 10000,
-        });
+        );
 
         const $ = cheerio.load(response.data);
         const earnings = [];
+        const seen = new Set();
 
-        $('table tbody tr').slice(0, 8).each((i, row) => {
+        $('table tbody tr').each((i, row) => {
             const cells = $(row).find('td');
-            if (cells.length >= 2) {
+            if (cells.length >= 3) {
                 const company = $(cells[0]).text().trim();
                 const date = $(cells[1]).text().trim();
-                if (company && company.length > 2) {
+                const purpose = $(cells[2]).text().trim();
+                const link = $(cells[0]).find('a').attr('href') || '';
+
+                // Only show result/earnings announcements
+                const purposeLower = purpose.toLowerCase();
+                if (company && company.length > 2 && !seen.has(company) &&
+                    (purposeLower.includes('result') || purposeLower.includes('financial') || purposeLower.includes('q1') || purposeLower.includes('q2') || purposeLower.includes('q3') || purposeLower.includes('q4') || purposeLower.includes('annual'))) {
+                    seen.add(company);
                     earnings.push({
                         company: company.substring(0, 50),
-                        date: date.substring(0, 30),
-                        link: '',
+                        date: date.trim().substring(0, 30),
+                        purpose: purpose.substring(0, 50),
+                        link: link.startsWith('http') ? link : (link ? `https://www.chittorgarh.com${link}` : ''),
                     });
                 }
             }
         });
 
-        console.log(`✅ Earnings (Trendlyne): ${earnings.length} companies`);
-        return earnings;
+        if (earnings.length > 0) {
+            console.log(`✅ Earnings: ${earnings.length} companies`);
+            return earnings.slice(0, 8);
+        }
+
+        // Fallback: NSE corporate actions page
+        return await getEarningsFromNSE();
+    } catch (error) {
+        console.warn('⚠️ Earnings error:', error.message);
+        return await getEarningsFromNSE();
+    }
+}
+
+async function getEarningsFromNSE() {
+    try {
+        // NSE corporate board meetings for results
+        const today = new Date();
+        const end = new Date(); end.setDate(end.getDate() + 7);
+        const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+        // Get session cookie first
+        const home = await axios.get('https://www.nseindia.com/', {
+            headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'text/html' }, timeout: 10000
+        });
+        const cookies = (home.headers['set-cookie'] || []).map(c => c.split(';')[0]).join('; ');
+
+        const r = await axios.get(
+            `https://www.nseindia.com/api/merged-daily-reports?key=favCapital&toDate=${fmt(end)}&fromDate=${fmt(today)}`,
+            {
+                headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json', Cookie: cookies, Referer: 'https://www.nseindia.com/' },
+                timeout: 12000,
+            }
+        );
+
+        const data = r.data;
+        const earnings = [];
+        const seen = new Set();
+        const items = Array.isArray(data) ? data : (data?.data || []);
+
+        for (const item of items) {
+            const company = item.symbol || item.company || item.companyName || '';
+            const date = item.bm_date || item.date || item.meetingDate || '';
+            const purpose = (item.bm_purpose || item.purpose || '').toLowerCase();
+
+            if (company && !seen.has(company) &&
+                (purpose.includes('result') || purpose.includes('financial') || purpose.includes('quarterly'))) {
+                seen.add(company);
+                earnings.push({
+                    company: company.substring(0, 50),
+                    date: date.substring(0, 20),
+                    link: '',
+                });
+            }
+        }
+
+        console.log(`✅ Earnings (NSE): ${earnings.length} companies`);
+        return earnings.slice(0, 8);
     } catch (err) {
-        console.warn('  ⚠️ Trendlyne earnings failed:', err.message);
+        console.warn('  ⚠️ NSE earnings failed:', err.message);
         return [];
     }
 }
