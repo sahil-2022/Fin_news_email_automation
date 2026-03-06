@@ -227,7 +227,7 @@ FINews/
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/Fin_news_email_automation.git
+git clone https://github.com/sahil-2022/Fin_news_email_automation.git
 cd Fin_news_email_automation
 ```
 
@@ -281,8 +281,6 @@ Open `http://localhost:3000` to view the market dashboard.
 - [ ] **Personalized Watchlists** — Customized stock alerts per subscriber  
 - [ ] **Historical Data Tracking** — Store daily data for trend analysis  
 - [ ] **Interactive Web Dashboard** — Real-time charts and analytics  
-- [ ] **Options Chain Analysis** — Put/Call ratios, OI data, max pain  
-- [ ] **Multi-language Support** — Hindi, Marathi, and other regional translations  
 - [ ] **SMS Alerts** — Critical market movement notifications  
 - [ ] **Portfolio Tracking** — Track personal holdings against market performance  
 - [ ] **RSS Feed** — Subscribe via RSS reader  
@@ -295,7 +293,7 @@ Open `http://localhost:3000` to view the market dashboard.
 Built with ❤️ for the Indian stock market community.
 
 **Sahil Prajapati**  
-- GitHub: [@sahilprajapati](https://github.com/sahilprajapati)
+- GitHub: [@sahil-2022](https://github.com/sahil-2022)
 
 ---
 
