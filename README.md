@@ -211,9 +211,11 @@ jobs:
 ### Email Report
 > A comprehensive, dark-themed HTML email with all market data sections.
 
-<p align="center">
-  <img src="images/email-report-preview.png" alt="FINews Email Report Preview" width="600"/>
-</p>
+| | |
+|:---:|:---:|
+| ![Email Report 1](images/email-report-1.png) | ![Email Report 2](images/email-report-2.png) |
+| ![Email Report 3](images/email-report-3.png) | ![Email Report 4](images/email-report-4.png) |
+| ![Email Report 5](images/email-report-5.png) | ![Email Report 6](images/email-report-6.png) |
 
 ### GitHub Actions Workflow
 > Automated pipeline running daily on GitHub's infrastructure.
@@ -221,8 +223,6 @@ jobs:
 <p align="center">
   <img src="images/github-actions-workflow.png" alt="GitHub Actions Workflow" width="600"/>
 </p>
-
-> 📌 *Add your own screenshots to the `images/` folder to replace these placeholders.*
 
 ---
 
