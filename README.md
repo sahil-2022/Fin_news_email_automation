@@ -102,51 +102,9 @@ All phases use `Promise.allSettled()` for fault-tolerant execution — if one da
 
 ## 🏗️ System Architecture
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                     GitHub Actions (Cron)                        │
-│                  Triggers daily at 7:00 PM IST                  │
-└─────────────────────────┬────────────────────────────────────────┘
-                          │
-                          ▼
-┌──────────────────────────────────────────────────────────────────┐
-│                    📡 Data Collection Layer                      │
-│                                                                  │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐   │
-│  │  marketData   │  │  fiiDiiData   │  │     newsData         │   │
-│  │  (Yahoo Fin.) │  │  (Web Scrape) │  │  (News Scrape)       │   │
-│  └──────────────┘  └──────────────┘  └──────────────────────┘   │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐   │
-│  │ enhancedData  │  │ advancedData  │  │   AI Summary Gen.    │   │
-│  │ (Sectors,VIX) │  │ (IPO,Earnings)│  │  (Rule-based/AI)     │   │
-│  └──────────────┘  └──────────────┘  └──────────────────────┘   │
-└─────────────────────────┬────────────────────────────────────────┘
-                          │
-                          ▼
-┌──────────────────────────────────────────────────────────────────┐
-│                  🔄 Processing & Insights                        │
-│                                                                  │
-│     Sentiment Analysis • 52-Week Breakouts • Volume Leaders      │
-│           Technical Levels • Trend Detection                     │
-└─────────────────────────┬────────────────────────────────────────┘
-                          │
-                          ▼
-┌──────────────────────────────────────────────────────────────────┐
-│                   📧 Email Generation                            │
-│                                                                  │
-│  ┌──────────────────┐    ┌──────────────────────────────────┐   │
-│  │  template.js      │───▶│  Responsive HTML Email Report    │   │
-│  │  (HTML Generator) │    │  (Dark theme, mobile-friendly)   │   │
-│  └──────────────────┘    └──────────────────────────────────┘   │
-└─────────────────────────┬────────────────────────────────────────┘
-                          │
-                          ▼
-┌──────────────────────────────────────────────────────────────────┐
-│                   📬 Email Delivery                              │
-│                                                                  │
-│          Nodemailer → Gmail SMTP → Recipients Inbox              │
-└──────────────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="images/system-architecture.png" alt="FINews System Architecture" width="700"/>
+</p>
 
 ---
 
